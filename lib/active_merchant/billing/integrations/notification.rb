@@ -12,18 +12,36 @@ module ActiveMerchant #:nodoc:
         end
 
         def status
-          raise NotImplementedError, "Must implement this method in the subclass"
+          params['Status']
+        end
+
+        def status_detail
+          params['StatusDetail']
+        end
+
+        # The id the helper passed in to identify the order.
+        def order
+          params['VPSTxId']
         end
 
         # the money amount we received in X.2 decimal.
         def gross
-          raise NotImplementedError, "Must implement this method in the subclass"
+          params['Amount'].to_f
+        end
+
+        def gift_aid?
+          params['GiftAid'].to_i > 0
         end
 
         def gross_cents
           (gross.to_f * 100.0).round
         end
 
+        def cv2_result
+          params['CV2Result'].downcase.to_sym
+        end
+
+        
         # This combines the gross and currency and returns a proper Money object. 
         # this requires the money library located at http://dist.leetsoft.com/api/money
         def amount
