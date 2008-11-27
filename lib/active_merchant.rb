@@ -28,7 +28,13 @@ begin
   require 'active_support'
 rescue LoadError
   require 'rubygems'
-  require 'activesupport'
+  
+  if respond_to? :gem
+    gem 'activesupport', ">=2.0.0"
+    require 'active_support'
+  else
+    require_gem 'activesupport'
+  end
 end
 
 begin
@@ -40,6 +46,7 @@ end
 
 require 'cgi'
 
+require 'active_merchant/lib/utils'
 require 'active_merchant/lib/error'
 require 'active_merchant/lib/validateable'
 require 'active_merchant/lib/posts_data'
@@ -48,6 +55,12 @@ require 'active_merchant/lib/requires_parameters'
 
 # Require the country class
 require 'active_merchant/lib/country'
+
+# Address Verification
+require 'active_merchant/billing/avs_result'
+
+# Card Verfication Code
+require 'active_merchant/billing/cvv_result'
 
 # CreditCard Utility class. 
 require 'active_merchant/billing/credit_card_methods'

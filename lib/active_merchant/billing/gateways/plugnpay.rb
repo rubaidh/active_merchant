@@ -93,10 +93,6 @@ module ActiveMerchant
       SUCCESS_CODES = [ 'pending', 'success' ]
       FAILURE_CODES = [ 'badcard', 'fraud' ]
      
-      # URL
-      attr_reader :response
-      attr_reader :options
-      
       self.default_currency = 'USD'
       self.supported_countries = ['US']
       self.supported_cardtypes = [:visa, :master, :american_express, :discover]
@@ -174,20 +170,16 @@ module ActiveMerchant
       
       private                                 
       def commit(action, post)
-        if result = test_result_from_cc_number(post[:card_number])
-          return result
-        end
-                   
-        data = ssl_post(URL, post_data(action, post))
-           
-        @response = parse(data)
+        response = parse( ssl_post(URL, post_data(action, post)) )
         
-        success = SUCCESS_CODES.include?(@response[:finalstatus])
-        message = success ? 'Success' : message_from(@response)
+        success = SUCCESS_CODES.include?(response[:finalstatus])
+        message = success ? 'Success' : message_from(response)
             
-        Response.new(success, message, @response, 
+        Response.new(success, message, response, 
           :test => test?, 
-          :authorization => @response[:orderid]
+          :authorization => response[:orderid],
+          :avs_result => { :code => response[:avs_code] },
+          :cvv_result => response[:cvvresp]
         )
       end
                                                

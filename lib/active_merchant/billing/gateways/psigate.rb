@@ -9,7 +9,7 @@
 #  
 #  twenty = 2000
 #  gateway = PsigateGateway.new(
-#    :store_id => 'teststore',
+#    :login => 'teststore',
 #    :password => 'psigate1234'
 #  )
 #  
@@ -20,16 +20,18 @@
 #    :first_name => 'Longbob',
 #    :last_name => 'Longsen'
 #  )
-#  response = @gateway.authorize(twenty, creditcard, {:order_id =>  1234,
+#  response = @gateway.authorize(twenty, creditcard,
+#     :order_id =>  1234,
 #     :billing_address => {
-#  	  :address1 => '123 fairweather Lane',
-#  	  :address2 => 'Apt B',
-#  	  :city => 'New York',
-#  	  :state => 'NY',
-#  	  :country => 'U.S.A.',
-#  	  :zip => '10010'},
+#  	    :address1 => '123 fairweather Lane',
+#  	    :address2 => 'Apt B',
+#  	    :city => 'New York',
+#  	    :state => 'NY',
+#  	    :country => 'U.S.A.',
+#  	    :zip => '10010'
+#    },
 #    :email => 'jack@yahoo.com'
-#    })
+#  )
 
 require 'rexml/document'
 
@@ -37,12 +39,6 @@ module ActiveMerchant #:nodoc:
   module Billing #:nodoc:
 
     class PsigateGateway < Gateway
-     
-      # URL
-      attr_reader :url 
-      attr_reader :response
-      attr_reader :options
-
       TEST_URL  = 'https://dev.psigate.com:7989/Messenger/XMLMessenger'
       LIVE_URL  = 'https://secure.psigate.com:7934/Messenger/XMLMessenger'
       
@@ -50,18 +46,13 @@ module ActiveMerchant #:nodoc:
       self.supported_countries = ['CA']
       self.homepage_url = 'http://www.psigate.com/'
       self.display_name = 'Psigate'
-      
+   
+      SUCCESS_MESSAGE = 'Success'
+      FAILURE_MESSAGE = 'The transaction was declined'
       
       def initialize(options = {})
         requires!(options, :login, :password)
-      
-        options[:store_id] ||= options[:login]
-      
-        # these are the defaults for the psigate test server
-        @options = {
-          :store_id   => "teststore",
-          :password   => "testpass",          
-        }.update(options)                           
+        @options = options                          
         super      
       end      
     
@@ -95,49 +86,21 @@ module ActiveMerchant #:nodoc:
       private                       
     
       def commit(money, creditcard, options = {}) 
-        parameters = parameters(money, creditcard, options)                                
-        
-        if result = test_result_from_cc_number(parameters[:CardNumber])
-          return result
-        end
-        
-        url = test? ? TEST_URL : LIVE_URL
-        
-        data = ssl_post(url, post_data(parameters))
-        @response = parse(data)
-        success = (@response[:approved] == "APPROVED")
-        message = message_form(@response)
-        Response.new(success, message, @response, :test => test?, :authorization => response[:orderid])
+        response = parse(ssl_post(test? ? TEST_URL : LIVE_URL, post_data(money, creditcard, options)))
+
+        Response.new(successful?(response), message_from(response), response, 
+          :test => test?, 
+          :authorization => response[:orderid],
+          :avs_result => { :code => response[:avsresult] },
+          :cvv_result => response[:cardidresult]
+        )
+      end
+      
+      def successful?(response)
+        response[:approved] == "APPROVED"
       end
                                                
-      # Parse psigate response xml into a convinient hash
       def parse(xml)
-        #  <?xml version="1.0" encoding="UTF-8"?>
-        #  <Result>
-        #  <TransTime>Tue Jun 27 22:19:58 EDT 2006</TransTime>
-        #  <OrderID>1004</OrderID>
-        #  <TransactionType>POSTAUTH</TransactionType>
-        #  <Approved>APPROVED</Approved>
-        #  <ReturnCode>Y:123456:0abcdef:M:X:NNN</ReturnCode>
-        #  <ErrMsg></ErrMsg>
-        #  <TaxTotal>0.00</TaxTotal>
-        #  <ShipTotal>0.00</ShipTotal>
-        #  <SubTotal>20.00</SubTotal>
-        #  <FullTotal>20.00</FullTotal>
-        #  <PaymentType>CC</PaymentType>
-        #  <CardNumber>......1111</CardNumber>
-        #  <TransRefNumber>1bd6f76ad1a25804</TransRefNumber>
-        #  <CardIDResult>M</CardIDResult>
-        #  <AVSResult>X</AVSResult>
-        #  <CardAuthNumber>123456</CardAuthNumber>
-        #  <CardRefNumber>0abcdef</CardRefNumber>
-        #  <CardType>VISA</CardType>
-        #  <IPResult>NNN</IPResult>
-        #  <IPCountry>UN</IPCountry>
-        #  <IPRegion>UNKNOWN</IPRegion>
-        #  <IPCity>UNKNOWN</IPCity>
-        #  </Result>   
-
         response = {:message => "Global Error Receipt", :complete => false}
 
         xml = REXML::Document.new(xml)          
@@ -150,12 +113,12 @@ module ActiveMerchant #:nodoc:
         response
       end     
 
-      def post_data(parameters = {})
+      def post_data(money, creditcard, options)
         xml = REXML::Document.new
         xml << REXML::XMLDecl.new
         root  = xml.add_element("Order")
         
-        for key, value in parameters
+        for key, value in parameters(money, creditcard, options)
           root.add_element(key.to_s).text = value if value
         end    
 
@@ -167,7 +130,7 @@ module ActiveMerchant #:nodoc:
       def parameters(money, creditcard, options = {})  
         params = {
           # General order paramters
-          :StoreID => @options[:store_id],
+          :StoreID => @options[:login],
           :Passphrase => @options[:password],
           :TestResult => options[:test_result],
           :OrderID => options[:order_id],
@@ -213,7 +176,7 @@ module ActiveMerchant #:nodoc:
           params[:Bcompany]     = address[:company]  unless address[:company].blank?
         end
         
-        if address = options[:shipping_address] || options[:address]                   
+        if address = options[:shipping_address]
           params[:Sname]        = address[:name] || creditcard.name 
           params[:Saddress1]    = address[:address1] unless address[:address1].blank?
           params[:Saddress2]    = address[:address2] unless address[:address2].blank?
@@ -227,11 +190,11 @@ module ActiveMerchant #:nodoc:
         return params
       end
       
-      def message_form(response)
+      def message_from(response)
         if response[:approved] == "APPROVED"
-          return 'Success'
+          return SUCCESS_MESSAGE
         else
-          return 'Unspecified error' if response[:errmsg].blank?
+          return FAILURE_MESSAGE if response[:errmsg].blank?
           return response[:errmsg].gsub(/[^\w]/, ' ').split.join(" ").capitalize
         end
       end

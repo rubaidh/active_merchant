@@ -62,8 +62,8 @@ module ActiveMerchant #:nodoc:
         commit(request, :recurring)
       end
       
-      def recurring_inquiry(profile_id)
-        request = build_recurring_request(:inquiry, nil, :profile_id => profile_id)
+      def recurring_inquiry(profile_id, options = {})
+        request = build_recurring_request(:inquiry, nil, options.update( :profile_id => profile_id ))
         commit(request, :recurring)
       end   
       
@@ -81,7 +81,7 @@ module ActiveMerchant #:nodoc:
       end
       
       def build_reference_sale_or_authorization_request(action, money, reference, options)
-        xml = Builder::XmlMarkup.new :indent => 2
+        xml = Builder::XmlMarkup.new 
         xml.tag! TRANSACTIONS[action] do
           xml.tag! 'PayData' do
             xml.tag! 'Invoice' do
@@ -98,7 +98,7 @@ module ActiveMerchant #:nodoc:
       end
       
       def build_credit_card_request(action, money, credit_card, options)
-        xml = Builder::XmlMarkup.new :indent => 2
+        xml = Builder::XmlMarkup.new 
         xml.tag! TRANSACTIONS[action] do
           xml.tag! 'PayData' do
             xml.tag! 'Invoice' do
@@ -107,10 +107,8 @@ module ActiveMerchant #:nodoc:
               xml.tag! 'Description', options[:description] unless options[:description].blank?
 
               billing_address = options[:billing_address] || options[:address]
-              shipping_address = options[:shipping_address] || billing_address
-
-              add_address(xml, 'BillTo', billing_address, options)
-              add_address(xml, 'ShipTo', shipping_address, options)
+              add_address(xml, 'BillTo', billing_address, options) if billing_address
+              add_address(xml, 'ShipTo', options[:shipping_address], options) if options[:shipping_address]
               
               xml.tag! 'TotalAmt', amount(money), 'Currency' => options[:currency] || currency(money)
             end
@@ -128,20 +126,21 @@ module ActiveMerchant #:nodoc:
           xml.tag! 'CardType', credit_card_type(credit_card)
           xml.tag! 'CardNum', credit_card.number
           xml.tag! 'ExpDate', expdate(credit_card)
-          xml.tag! 'NameOnCard', credit_card.name
+          xml.tag! 'NameOnCard', credit_card.first_name
           xml.tag! 'CVNum', credit_card.verification_value if credit_card.verification_value?
           
           if requires_start_date_or_issue_number?(credit_card)
             xml.tag!('ExtData', 'Name' => 'CardStart', 'Value' => startdate(credit_card)) unless credit_card.start_month.blank? || credit_card.start_year.blank?
             xml.tag!('ExtData', 'Name' => 'CardIssue', 'Value' => format(credit_card.issue_number, :two_digits)) unless credit_card.issue_number.blank?
           end
+          xml.tag! 'ExtData', 'Name' => 'LASTNAME', 'Value' =>  credit_card.last_name
         end
       end
       
       def credit_card_type(credit_card)
-        return '' if credit_card.type.blank?
+        return '' if card_brand(credit_card).blank?
         
-        CARD_MAPPING[credit_card.type.to_sym]
+        CARD_MAPPING[card_brand(credit_card).to_sym]
       end
       
       def expdate(creditcard)
@@ -163,7 +162,7 @@ module ActiveMerchant #:nodoc:
           raise StandardError, "Invalid Recurring Profile Action: #{action}"
         end
 
-        xml = Builder::XmlMarkup.new :indent => 2
+        xml = Builder::XmlMarkup.new 
         xml.tag! 'RecurringProfiles' do
           xml.tag! 'RecurringProfile' do
             xml.tag! action.to_s.capitalize do
@@ -188,10 +187,8 @@ module ActiveMerchant #:nodoc:
                   xml.tag! 'EMail', options[:email] unless options[:email].nil?
                   
                   billing_address = options[:billing_address] || options[:address]
-                  shipping_address = options[:shipping_address] || billing_address
-                  
-                  add_address(xml, 'BillTo', billing_address, options)
-                  add_address(xml, 'ShipTo', shipping_address, options)
+                  add_address(xml, 'BillTo', billing_address, options) if billing_address
+                  add_address(xml, 'ShipTo', options[:shipping_address], options) if options[:shipping_address]
                 end
                 xml.tag! 'Tender' do
                   yield xml
@@ -199,6 +196,9 @@ module ActiveMerchant #:nodoc:
               end
               if action != :add
                 xml.tag! "ProfileID", options[:profile_id]
+              end
+              if action == :inquiry
+                xml.tag! "PaymentHistory", ( options[:history] ? 'Y' : 'N' )
               end
             end
           end

@@ -129,10 +129,6 @@ module ActiveMerchant #:nodoc:
         "96" => "System Error"
       }
       
-      attr_reader :url 
-      attr_reader :response
-      attr_reader :options
-	
 	    self.money_format = :cents
       self.supported_countries = ['AU']
       self.supported_cardtypes = [:visa, :master]
@@ -195,26 +191,19 @@ module ActiveMerchant #:nodoc:
         post[:Option3] = nil     
       end
 
-      def commit(money, parameters)
-          
+      def commit(money, parameters)       
         parameters[:TotalAmount] = amount(money)
-        
-        if result = test_result_from_cc_number(parameters[:CardNumber])
-          return result
-        end
 
-        data = ssl_post gateway_url(parameters[:CVN], test?), post_data(parameters)
-        
-        @response = parse(data)
+        response = parse( ssl_post(gateway_url(parameters[:CVN], test?), post_data(parameters)) )
 
-        success = (response[:ewaytrxnstatus] == "True")
-        message = message_from(response[:ewaytrxnerror])
-        test = /\(Test( CVN)? Gateway\)/ === response[:ewaytrxnerror]
-    
-        Response.new(success, message, @response,
+        Response.new(success?(response), message_from(response[:ewaytrxnerror]), response,
           :authorization => response[:ewayauthcode],
-          :test => test
+          :test => /\(Test( CVN)? Gateway\)/ === response[:ewaytrxnerror]
         )      
+      end
+      
+      def success?(response)
+        response[:ewaytrxnstatus] == "True"
       end
                                              
       # Parse eway response xml into a convinient hash

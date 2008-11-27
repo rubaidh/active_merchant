@@ -8,7 +8,7 @@ require File.dirname(__FILE__) + '/lib/tasks/cia'
 require File.dirname(__FILE__) + '/lib/support/gateway_support'
 
 
-PKG_VERSION = "1.2.1"
+PKG_VERSION = "1.4.0"
 PKG_NAME = "activemerchant"
 PKG_FILE_NAME = "#{PKG_NAME}-#{PKG_VERSION}"
 
@@ -30,7 +30,7 @@ namespace :test do
   end
 
   Rake::TestTask.new(:remote) do |t|
-    t.pattern = 'test/remote_tests/*_test.rb'
+    t.pattern = 'test/remote/**/*_test.rb'
     t.ruby_opts << '-rubygems'
     t.verbose = true
   end
@@ -80,8 +80,8 @@ spec = Gem::Specification.new do |s|
 
   s.files = PKG_FILES
 
+  s.rubyforge_project = "activemerchant"
   s.require_path = 'lib'
-  s.autorequire  = 'active_merchant'
   s.author = "Tobias Luetke"
   s.email = "tobi@leetsoft.com"
   s.homepage = "http://activemerchant.org/"
@@ -115,6 +115,7 @@ task :publish => [ :package ] do
   packages = %w( gem tgz zip ).collect{ |ext| "pkg/#{PKG_NAME}-#{PKG_VERSION}.#{ext}" }
   
   rubyforge = RubyForge.new
+  rubyforge.configure
   rubyforge.login
   rubyforge.add_release(PKG_NAME, PKG_NAME, "REL #{PKG_VERSION}", *packages)
 end
@@ -129,22 +130,30 @@ task :upload_rdoc => :rdoc do
 end
 
 namespace :gateways do
-  desc 'Print the currently supported gateways in RDoc format'
-  task :print_support_rdoc do
-    support = GatewaySupport.new
-    support.to_rdoc
-  end
-  
   desc 'Print the currently supported gateways'
-  task :print_support do
+  task :print do
     support = GatewaySupport.new
     support.to_s
   end
   
-  desc 'Print the currently supported gateways'
-  task :print_support_textile do
-    support = GatewaySupport.new
-    support.to_textile
+  namespace :print do
+    desc 'Print the currently supported gateways in RDoc format'
+    task :rdoc do
+      support = GatewaySupport.new
+      support.to_rdoc
+    end
+  
+    desc 'Print the currently supported gateways in Textile format'
+    task :textile do
+      support = GatewaySupport.new
+      support.to_textile
+    end
+    
+    desc 'Print the gateway functionality supported by each gateway'
+    task :features do
+      support = GatewaySupport.new
+      support.features
+    end
   end
 end
   

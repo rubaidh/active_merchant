@@ -1,6 +1,12 @@
 require File.dirname(__FILE__) + '/../../test_helper'
 
 class PayflowExpressTest < Test::Unit::TestCase
+  TEST_REDIRECT_URL = 'https://test-expresscheckout.paypal.com/cgi-bin/webscr?cmd=_express-checkout&token=1234567890'
+  LIVE_REDIRECT_URL = 'https://www.paypal.com/cgibin/webscr?cmd=_express-checkout&token=1234567890'
+  
+  TEST_REDIRECT_URL_WITHOUT_REVIEW = "#{TEST_REDIRECT_URL}&useraction=commit"
+  LIVE_REDIRECT_URL_WITHOUT_REVIEW = "#{LIVE_REDIRECT_URL}&useraction=commit"
+  
   def setup
     Base.gateway_mode = :test
   
@@ -51,21 +57,23 @@ class PayflowExpressTest < Test::Unit::TestCase
     assert !gateway.test?
   end
   
-  def test_class_certification_id
-    assert_equal '55d64dfec398cbbe66c1bf843cbad9', PayflowExpressGateway.certification_id
-    PayflowExpressGateway.certification_id = 'test'
-    assert_equal 'test', PayflowExpressGateway.certification_id
-    gateway = PayflowExpressGateway.new(:login => 'test', :password => 'test')
-    assert_equal 'test', gateway.certification_id
-  end
-  
   def test_live_redirect_url
     Base.gateway_mode = :production
-    assert_equal 'https://www.paypal.com/cgibin/webscr?cmd=_express-checkout&token=1234567890', @gateway.redirect_url_for('1234567890')
+    assert_equal LIVE_REDIRECT_URL, @gateway.redirect_url_for('1234567890')
   end
   
   def test_test_redirect_url
-    assert_equal 'https://test-expresscheckout.paypal.com/cgi-bin/webscr?cmd=_express-checkout&token=1234567890', @gateway.redirect_url_for('1234567890')
+    assert_equal TEST_REDIRECT_URL, @gateway.redirect_url_for('1234567890')
+  end
+  
+  def test_live_redirect_url_without_review
+    Base.gateway_mode = :production
+    assert_equal LIVE_REDIRECT_URL_WITHOUT_REVIEW, @gateway.redirect_url_for('1234567890', :review => false)
+  end
+  
+  def test_test_redirect_url_without_review
+    assert_equal :test, Base.gateway_mode
+    assert_equal TEST_REDIRECT_URL_WITHOUT_REVIEW, @gateway.redirect_url_for('1234567890', :review => false)
   end
   
   def test_invalid_get_express_details_request

@@ -117,7 +117,7 @@ class CreditCardMethodsTest < Test::Unit::TestCase
     assert_not_equal 'laser', CreditCard.type?('630498502809056')
     
     # Alternate format
-    assert_equal 'laser', CreditCard.type?('670695000000000000')
+    assert_equal 'laser', CreditCard.type?('6706950000000000000')
   end
   
   def test_should_detect_when_an_argument_type_does_not_match_calculated_type
@@ -125,4 +125,46 @@ class CreditCardMethodsTest < Test::Unit::TestCase
     assert_false CreditCard.matching_type?('4175001000000000', 'master')
   end
   
+  def test_detecting_full_range_of_maestro_card_numbers
+    maestro = '50000000000'
+    
+    assert_equal 11, maestro.length
+    assert_not_equal 'maestro', CreditCard.type?(maestro)
+    
+    while maestro.length < 19
+      maestro << '0'
+      assert_equal 'maestro', CreditCard.type?(maestro)
+    end
+    
+    assert_equal 19, maestro.length
+    
+    maestro << '0'
+    assert_not_equal 'maestro', CreditCard.type?(maestro)
+  end
+  
+  def test_matching_discover_card
+    assert CreditCard.matching_type?('6011000000000000', 'discover')
+    assert CreditCard.matching_type?('6500000000000000', 'discover')
+    
+    assert_false CreditCard.matching_type?('6010000000000000', 'discover')
+    assert_false CreditCard.matching_type?('6600000000000000', 'discover')
+  end
+  
+  def test_16_digit_maestro_uk
+    number = '6759000000000000'
+    assert_equal 16, number.length
+    assert_equal 'switch', CreditCard.type?(number)
+  end
+  
+  def test_18_digit_maestro_uk
+    number = '675900000000000000'
+    assert_equal 18, number.length
+    assert_equal 'switch', CreditCard.type?(number)
+  end
+  
+  def test_19_digit_maestro_uk
+    number = '6759000000000000000'
+    assert_equal 19, number.length
+    assert_equal 'switch', CreditCard.type?(number)
+  end
 end

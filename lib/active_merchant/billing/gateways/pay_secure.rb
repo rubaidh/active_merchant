@@ -3,10 +3,6 @@ module ActiveMerchant #:nodoc:
     class PaySecureGateway < Gateway
       URL = 'https://clearance.commsecure.com.au/cgi-bin/PSDirect'
       
-      attr_reader :url 
-      attr_reader :response
-      attr_reader :options
-      
       self.money_format = :cents
 
       # Currently Authorization and Capture is not implemented because
@@ -77,15 +73,11 @@ module ActiveMerchant #:nodoc:
       end
        
       def commit(action, money, parameters)
-        if result = test_result_from_cc_number(parameters[:cardnum])
-          return result
-        end
-      
-        @response = parse(ssl_post(URL, post_data(action, parameters), 'Content-Type' => 'application/x-www-form-urlencoded'))
+        response = parse( ssl_post(URL, post_data(action, parameters)) )
         
-        Response.new(successful?(@response), message_from(@response), @response, 
-          :test => test_response?(@response), 
-          :authorization => authorization_from(@response)
+        Response.new(successful?(response), message_from(response), response, 
+          :test => test_response?(response), 
+          :authorization => authorization_from(response)
         )
         
       end

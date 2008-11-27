@@ -14,7 +14,17 @@ authorize_net:
   login: X
   password: Y
 
-brain_tree:
+beanstream:
+  login: merchant id
+  user: username
+  password: password
+  
+beanstream_interac:
+  login: merchant id
+  user: username
+  password: password
+
+braintree:
   login: demo
   password: password
   
@@ -54,6 +64,10 @@ linkpoint:
   pem: |--
     PASTE YOUR PEM FILE HERE
 
+modern_payments:
+  login: login
+  password: password
+  
 # Working credentials, no need to replace
 moneris:
   login: store1
@@ -88,14 +102,18 @@ payment_express:
   password: PASSWORD
 
 # You can use either your API PEM file or API signature with PayPal.
-paypal:
+paypal_certificate:
   login: LOGIN
   password: PASSWORD
   subject:
-  signature:
   pem: |--
     PASTE YOUR PEM FILE HERE
-    
+
+paypal_signature:
+  login: LOGIN
+  password: PASSWORD
+  signature: SIGNATURE
+
 pay_secure:
   login: LOGIN
   password: PASSWORD
@@ -232,10 +250,27 @@ realex_mastercard_coms_error:
   year: '2020'
   verification_value: '123'
 
+sage:
+  login: login
+  password: password
+
 secure_pay:
   login: LOGIN
   password: PASSWORD
-  
+
+secure_pay_tech:
+  login: TESTDIGISPL1
+  password: d557591484cb2cd12bba445aba420d2c69cd6a88
+
+secure_pay_au:
+  login:
+  password:
+
+#  Replace with your serial numbers for the skipjack test environment
+skipjack:
+  login: X
+  password: Y 
+
 trans_first:
   login: LOGIN
   password: PASSWORD
@@ -258,3 +293,9 @@ viaklix:
   login: LOGIN
   password: PASSWORD
   user: USER
+  
+# Working test credentials, no need to replace
+wirecard:
+  login: 56500
+  password: TestXAPTER
+  

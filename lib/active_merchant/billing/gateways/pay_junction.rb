@@ -1,6 +1,5 @@
 module ActiveMerchant #:nodoc:
   module Billing #:nodoc:
-    
     # PayJunction Gateway
     #
     # This gateway accepts the following arguments:
@@ -11,7 +10,8 @@ module ActiveMerchant #:nodoc:
     #
     #   gateway = ActiveMerchant::Billing::Base.gateway(:pay_junction).new(
     #               :login => "my_account", 
-    #               :password => "my_pass" )
+    #               :password => "my_pass"
+    #            )
     #
     #   # set up credit card obj as in main ActiveMerchant example
     #   creditcard = ActiveMerchant::Billing::CreditCard.new(
@@ -25,7 +25,7 @@ module ActiveMerchant #:nodoc:
     #
     #   # optionally specify address if using AVS
     #   address = { :address1 => '101 Test Ave', :city => 'Test', :state => 'TS',
-    #               :zipcode  => '10101', :country => 'US' }
+    #               :zip  => '10101', :country => 'US' }
     #
     #   # run request
     #   response = gateway.purchase(1000, creditcard, :address => address) # charge 10 dollars
@@ -52,8 +52,7 @@ module ActiveMerchant #:nodoc:
     #
     # See the source for initialize() for test account information. Note that
     # PayJunction does not allow test transactions on your account, so if the 
-    # gateway is running in :test mode or the :test_request option has been
-    # been specified and is true, your transaction will be run against
+    # gateway is running in :test mode your transaction will be run against
     # PayJunction's global test account and will not show up in your account.
     #
     # Transactions ran on this account go through a test processor, so there is no 
@@ -93,18 +92,21 @@ module ActiveMerchant #:nodoc:
     #                         "instant" transactions.
     #
     # dc_invoice              :order_id in options for transaction method
-    # dc_notes                :notes in options for transaction method
+    # dc_notes                :description in options for transaction method
     #
     # See example use above for address AVS fields
     # See #recurring for periodic transaction fields
-    #
-    
-    
     class PayJunctionGateway < Gateway
       API_VERSION   = '1.2'
-      LIVE_URL      = 'https://payjunction.com/quick_link' # also handles test requests 
+      URL      = 'https://payjunction.com/quick_link' # also handles test requests 
+      
+      TEST_LOGIN = 'pj-ql-01'
+      TEST_PASSWORD = 'pj-ql-01p'
       
       SUCCESS_CODES = ["00", "85"]
+      SUCCESS_MESSAGE = 'The transaction was approved.'
+      
+      FAILURE_MESSAGE = 'The transaction was declined.'
       
       DECLINE_CODES = {
         "AE"  => 'Address verification failed because address did not match.',
@@ -137,15 +139,8 @@ module ActiveMerchant #:nodoc:
         '15'  => 'Declined because there is no such issuer.',
         '96'  => 'Declined because of a system error.',
         'N7'  => 'Declined because of a CVV2/CVC2 mismatch.',
-        'M4'  => 'Declined.' 
-        
-      }
-      
-      BADDATA_CODES = {
-        "FE"  => "There was a format error with your Trinity Gateway Service (API) request."
-      }
-      
-      ERROR_CODES = {
+        'M4'  => 'Declined.', 
+        "FE"  => "There was a format error with your Trinity Gateway Service (API) request.",
         "LE"  => "Could not log you in (problem with dc_logon and/or dc_password).",
         'NL'  => 'Aborted because of a system error, please try again later. ',
         'AB'  => 'Aborted because of an upstream system error, please try again later.'
@@ -153,11 +148,8 @@ module ActiveMerchant #:nodoc:
       
       self.supported_cardtypes = [:visa, :master, :american_express, :discover]
       self.supported_countries = ['US']
-      
       self.homepage_url = 'http://www.payjunction.com/'
       self.display_name = 'PayJunction'
-      
-      attr_reader :url, :response, :options
 
       def initialize(options = {})
         requires!(options, :login, :password)
@@ -168,12 +160,12 @@ module ActiveMerchant #:nodoc:
       # The first half of the preauth(authorize)/postauth(capture) model.
       # Checks to make sure funds are available for a transaction, and returns a
       # transaction_id that can be used later to postauthorize (capture) the funds.
-      def authorize(money, creditcard_or_billing_id, options = {})
+      def authorize(money, payment_source, options = {})
         parameters = {
           :transaction_amount => amount(money),
         }                                                             
         
-        add_payment_source(parameters, creditcard_or_billing_id)
+        add_payment_source(parameters, payment_source)
         add_address(parameters, options)
         add_optional_fields(parameters, options)
         commit('AUTHORIZATION', parameters)
@@ -181,12 +173,12 @@ module ActiveMerchant #:nodoc:
       
       # A simple sale, capturing funds immediately.
       # Execute authorization and capture in a single step.
-      def purchase(money, creditcard_or_billing_id, options = {})        
+      def purchase(money, payment_source, options = {})        
         parameters = {
           :transaction_amount => amount(money),
         }                                                             
         
-        add_payment_source(parameters, creditcard_or_billing_id)
+        add_payment_source(parameters, payment_source)
         add_address(parameters, options)
         add_optional_fields(parameters, options)
         commit('AUTHORIZATION_CAPTURE', parameters)
@@ -238,7 +230,7 @@ module ActiveMerchant #:nodoc:
       # The optional parameter :starting_at takes a date or time argument or a string in 
       # YYYYMMDD format and can be used to specify when the first charge will be made. 
       # If omitted the first charge will be immediate.      
-      def recurring(money, creditcard_or_billing_id, options = {})        
+      def recurring(money, payment_source, options = {})        
         requires!(options, [:periodicity, :monthly, :weekly, :daily], :payments)
       
         periodic_type = case options[:periodicity]
@@ -268,17 +260,21 @@ module ActiveMerchant #:nodoc:
           :schedule_start => start_date
         }
         
-        add_payment_source(parameters, creditcard_or_billing_id)
+        add_payment_source(parameters, payment_source)
         add_optional_fields(parameters, options)
         add_address(parameters, options)                                   
         commit('AUTHORIZATION_CAPTURE', parameters)
       end
       
       def test?
-        @options[:test] || super
+        test_login? || @options[:test] || super
       end
 
       private
+      
+      def test_login?
+        @options[:login] == TEST_LOGIN && @options[:password] == TEST_PASSWORD
+      end
       
       # add fields depending on payment source selected (cc or transaction id)
       def add_payment_source(params, source)
@@ -321,57 +317,40 @@ module ActiveMerchant #:nodoc:
         params[:invoice] = options[:order_id].to_s.gsub(/[^-\/\w.,']/, '') unless options[:order_id].blank?
       end
       
-      def clean_and_stringify_params(parameters)
-        # PayJunction uses an HTTPS POST request to submit key-pairs. Here we're going
-        # to convert all symbols in the params to strings and remove any pairs that 
-        # have a nil value to keep the gateway happy.
-        to_submit = {}
-        parameters.keys.reverse.each do |key|
-          if parameters[key]
-            to_submit[key.to_s] = parameters[key] 
-          end
-        end
-        to_submit
-      end
-  
       def commit(action, parameters)
+        response = parse( ssl_post(URL, post_data(action, parameters)) )
+        
+        Response.new(successful?(response), message_from(response), response, 
+          :test => test?, 
+          :authorization => response[:transaction_id] || parameters[:transaction_id]
+        )
+      end
+      
+      def successful?(response)
+        SUCCESS_CODES.include?(response[:response_code]) || response[:query_status] == true
+      end
+      
+      def message_from(response)
+        if successful?(response)
+          SUCCESS_MESSAGE
+        else
+          DECLINE_CODES[response[:response_code]] || FAILURE_MESSAGE
+        end
+      end
+      
+      def post_data(action, params)
         if test?
           # test requests must use global test account
-          parameters[:logon]      = 'pj-ql-01'
-          parameters[:password]   = 'pj-ql-01p'
+          params[:logon]      = TEST_LOGIN
+          params[:password]   = TEST_PASSWORD
         else
-          parameters[:logon]      = @options[:login]
-          parameters[:password]   = @options[:password]
+          params[:logon]      = @options[:login]
+          params[:password]   = @options[:password]
         end
-        parameters[:version] = API_VERSION
-        parameters[:transaction_type] = action
+        params[:version] = API_VERSION
+        params[:transaction_type] = action
         
-        submission = clean_and_stringify_params(parameters)
-                
-        if result = test_result_from_cc_number(parameters[:number])
-          return result
-        end
-        
-        post_args = submission.collect { |key, value| "dc_#{key}=#{CGI.escape(value.to_s)}" }.join("&")
-        headers = {'Content-type' => 'application/x-www-form-urlencoded '}
-
-        data = ssl_post(LIVE_URL, post_args, headers) # execute transaction
-        @response = parse(data)
-
-        unless action == 'update'
-          success = SUCCESS_CODES.include?(@response[:response_code])
-          message = @response[:response_message]
-          authorization = @response[:transaction_id]
-        else
-          success = @response[:query_status] == true
-          message = 'Transaction update request.'     # no message returned with this trans. type
-          authorization = parameters[:transaction_id] # maintain trans ID since it isn't returned
-        end
-
-        Response.new(success, message, @response, 
-            :test => test?, 
-            :authorization => authorization
-        )
+        params.reject{|k,v| v.blank?}.collect{ |k, v| "dc_#{k.to_s}=#{CGI.escape(v.to_s)}" }.join("&")
       end
       
       def parse(body)

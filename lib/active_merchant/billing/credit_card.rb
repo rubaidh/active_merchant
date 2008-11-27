@@ -8,7 +8,7 @@ module ActiveMerchant #:nodoc:
     # This credit card object can be used as a stand alone object. It acts just like an ActiveRecord object
     # but doesn't support the .save method as its not backed by a database.
     # 
-    # For testing purposes, use the 'bogus' creditcard type. This card skips the vast majority of 
+    # For testing purposes, use the 'bogus' credit card type. This card skips the vast majority of 
     # validations. This allows you to focus on your core concerns until you're ready to be more concerned 
     # with the details of particular creditcards or your gateway.
     # 
@@ -41,7 +41,7 @@ module ActiveMerchant #:nodoc:
       ## Attributes
       
       cattr_accessor :require_verification_value
-      self.require_verification_value = false
+      self.require_verification_value = true
       
       # Essential attributes for a valid, non-bogus creditcards
       attr_accessor :number, :month, :year, :type, :first_name, :last_name
@@ -84,11 +84,11 @@ module ActiveMerchant #:nodoc:
 
       # Show the card number, with all but last 4 numbers replace with "X". (XXXX-XXXX-XXXX-4338)
       def display_number
-        "XXXX-XXXX-XXXX-#{last_digits}"
+        self.class.mask(number)
       end
       
       def last_digits
-        number.to_s.last(4)
+        self.class.last_digits(number)
       end
       
       def validate
@@ -110,10 +110,11 @@ module ActiveMerchant #:nodoc:
       private
       
       def before_validate #:nodoc: 
-        self.type.downcase! if type.respond_to?(:downcase)
         self.month = month.to_i
         self.year  = year.to_i
-        self.number.to_s.gsub!(/[^\d]/, "")
+        self.number = number.to_s.gsub(/[^\d]/, "")
+        self.type.downcase! if type.respond_to?(:downcase)
+        self.type = self.class.type?(number) if type.blank?
       end
       
       def validate_card_number #:nodoc:

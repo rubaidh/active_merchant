@@ -39,11 +39,7 @@ module ActiveMerchant #:nodoc:
       self.supported_countries = ['CA', 'US']
       self.homepage_url = 'http://www.e-xact.com'
       self.display_name = 'E-xact'
-      
-      attr_reader :url
-      attr_reader :response
-      attr_reader :options
-
+  
       def initialize(options = {})
         requires!(options, :login, :password)
         @options = options
@@ -60,18 +56,10 @@ module ActiveMerchant #:nodoc:
       end
       
       def authorize(money, credit_card, options = {})
-        if result = test_result_from_cc_number(credit_card.number)
-          return result
-        end
-        
         commit(:authorization, build_sale_or_authorization_request(money, credit_card, options))
       end
       
       def purchase(money, credit_card, options = {})
-        if result = test_result_from_cc_number(credit_card.number)
-          return result
-        end
-        
         commit(:sale, build_sale_or_authorization_request(money, credit_card, options))
       end
     
@@ -176,22 +164,26 @@ module ActiveMerchant #:nodoc:
       end
       
       def commit(action, request)
-         data = ssl_post(URL, build_request(action, request), POST_HEADERS)
+         response = parse(ssl_post(URL, build_request(action, request), POST_HEADERS))
       
-         @response = parse(data)
-      
-         success = @response[:transaction_approved] == SUCCESS
-         
-         authorization = if @response[:authorization_num] && @response[:transaction_tag]
-           "#{response[:authorization_num]};#{response[:transaction_tag]}"        
-         else
-           ''
-         end
-         
-         Response.new(success, message_from(@response), @response,
+         Response.new(successful?(response), message_from(response), response,
            :test => test?,
-           :authorization => authorization
+           :authorization => authorization_from(response),
+           :avs_result => { :code => response[:avs] },
+           :cvv_result => response[:cvv2]
          )
+      end
+      
+      def successful?(response)
+        response[:transaction_approved] == SUCCESS
+      end
+      
+      def authorization_from(response)
+        if response[:authorization_num] && response[:transaction_tag]
+           "#{response[:authorization_num]};#{response[:transaction_tag]}"        
+        else
+           ''
+        end
       end
       
       def message_from(response)

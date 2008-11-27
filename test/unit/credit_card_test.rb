@@ -11,24 +11,13 @@ class CreditCardTest < Test::Unit::TestCase
     CreditCard.require_verification_value = false
   end
   
-  def generate_valid_test_card(options={})
-    CreditCard.new({
-      :type       => "visa",
-      :number     => "4779139500118580",
-      :month      => Time.now.month,
-      :year       => Time.now.year,
-      :first_name => "Tobias",
-      :last_name  => "Luetke"      
-    }.merge(options))
-  end
-  
   def test_constructor_should_properly_assign_values
-    c = generate_valid_test_card
+    c = credit_card
 
-    assert_equal "4779139500118580", c.number
-    assert_equal Time.now.month, c.month
-    assert_equal Time.now.year, c.year
-    assert_equal "Tobias Luetke", c.name
+    assert_equal "4242424242424242", c.number
+    assert_equal 9, c.month
+    assert_equal Time.now.year + 1, c.year
+    assert_equal "Longbob Longsen", c.name
     assert_equal "visa", c.type
     assert_valid c
   end
@@ -67,7 +56,7 @@ class CreditCardTest < Test::Unit::TestCase
   end
   
   def test_should_be_able_to_liberate_a_bogus_card
-    c = generate_valid_test_card(:type => 'bogus', :number => '')
+    c = credit_card('', :type => 'bogus')
     assert_valid c
     
     c.type = 'visa'
@@ -101,11 +90,11 @@ class CreditCardTest < Test::Unit::TestCase
     assert_not_equal @visa.errors.on(:number), @visa.errors.on(:type)
   end
 
-  def test_should_be_invalid_with_empty_type
-    @visa.type = ''
+  def test_should_be_invalid_when_type_cannot_be_detected
+    @visa.number = nil
+    @visa.type = nil
     
     assert_not_valid @visa
-    assert_false @visa.errors.on(:number)
     assert_match /is required/, @visa.errors.on(:type)
     assert  @visa.errors.on(:type)
   end
@@ -164,7 +153,7 @@ class CreditCardTest < Test::Unit::TestCase
   end
 
   def test_should_identify_wrong_cardtype
-    c = generate_valid_test_card(:type => 'master')
+    c = credit_card(:type => 'master')
     assert_not_valid c
   end
 
@@ -173,9 +162,9 @@ class CreditCardTest < Test::Unit::TestCase
     assert_equal 'XXXX-XXXX-XXXX-1234', CreditCard.new(:number => '111222233331234').display_number
     assert_equal 'XXXX-XXXX-XXXX-1234', CreditCard.new(:number => '1112223331234').display_number
 
-    assert_equal 'XXXX-XXXX-XXXX-',     CreditCard.new(:number => nil).display_number
-    assert_equal 'XXXX-XXXX-XXXX-',     CreditCard.new(:number => '').display_number
-    assert_equal 'XXXX-XXXX-XXXX-123',  CreditCard.new(:number => '123').display_number
+    assert_equal 'XXXX-XXXX-XXXX-', CreditCard.new(:number => nil).display_number
+    assert_equal 'XXXX-XXXX-XXXX-', CreditCard.new(:number => '').display_number
+    assert_equal 'XXXX-XXXX-XXXX-123', CreditCard.new(:number => '123').display_number
     assert_equal 'XXXX-XXXX-XXXX-1234', CreditCard.new(:number => '1234').display_number
     assert_equal 'XXXX-XXXX-XXXX-1234', CreditCard.new(:number => '01234').display_number
   end
@@ -193,7 +182,7 @@ class CreditCardTest < Test::Unit::TestCase
   
   def test_should_not_be_valid_when_requiring_a_verification_value
     CreditCard.require_verification_value = true
-    card = generate_valid_test_card
+    card = credit_card('4242424242424242', :verification_value => nil)
     assert_not_valid card
     
     card.verification_value = '123'
@@ -233,6 +222,11 @@ class CreditCardTest < Test::Unit::TestCase
     assert_equal "8580", ccn.last_digits
   end
   
+  def test_bogus_last_digits
+    ccn = CreditCard.new(:number => "1")
+    assert_equal "1", ccn.last_digits
+  end
+  
   def test_should_be_true_when_credit_card_has_a_first_name
     c = CreditCard.new
     assert_false c.first_name?
@@ -256,22 +250,62 @@ class CreditCardTest < Test::Unit::TestCase
     c = CreditCard.new(:first_name => 'James', :last_name => 'Herdman')
     assert c.name?
   end
+
+  # The following is a regression for a bug that raised an exception when
+  # a new credit card was validated
+  def test_validate_new_card
+    credit_card = CreditCard.new
+    
+    assert_nothing_raised do
+      credit_card.validate
+    end
+  end
+ 
+  # The following is a regression for a bug where the keys of the
+  # credit card card_companies hash were not duped when detecting the type
+  def test_create_and_validate_credit_card_from_type
+    credit_card = CreditCard.new(:type => CreditCard.type?('4242424242424242'))
+    assert_nothing_raised do
+      credit_card.valid?
+    end
+  end
   
-  # Huh?
-#  def test_validate_new_card
-#    credit_card = CreditCard.new
-#    
-#    assert_nothing_raised do
-#      credit_card.validate
-#    end
-#  end
+  def test_autodetection_of_credit_card_type
+    credit_card = CreditCard.new(:number => '4242424242424242')
+    credit_card.valid?
+    assert_equal 'visa', credit_card.type
+  end
   
-  # Huh?
-#  def test_create_and_validate_credit_card_from_type
-#    credit_card = CreditCard.new(:type => CreditCard.type?('4242424242424242'))
-#    
-#    assert_nothing_raised do
-#      credit_card.valid?
-#    end
-#  end
+  def test_card_type_should_not_be_autodetected_when_provided
+    credit_card = CreditCard.new(:number => '4242424242424242', :type => 'master')
+    credit_card.valid?
+    assert_equal 'master', credit_card.type
+  end
+  
+  def test_detecting_bogus_card
+    credit_card = CreditCard.new(:number => '1')
+    credit_card.valid?
+    assert_equal 'bogus', credit_card.type
+  end
+  
+  def test_validating_bogus_card
+    credit_card = credit_card('1', :type => nil)
+    assert credit_card.valid?
+  end
+  
+  def test_mask_number
+    assert_equal 'XXXX-XXXX-XXXX-5100', CreditCard.mask('5105105105105100')
+  end
+  
+  def test_strip_non_digit_characters
+    card = credit_card('4242-4242      %%%%%%4242......4242')
+    assert card.valid?
+    assert_equal "4242424242424242", card.number
+  end
+  
+  def test_before_validate_handles_blank_number
+    card = credit_card(nil)
+    assert !card.valid?
+    assert_equal "", card.number
+  end
 end

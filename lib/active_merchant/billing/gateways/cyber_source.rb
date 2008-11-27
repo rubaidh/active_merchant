@@ -15,11 +15,6 @@ module ActiveMerchant #:nodoc:
     # * productCode is a value in the line_items hash that is used to tell CyberSource what kind of item you are selling.  It is used when calculating tax/VAT.
     # * All transactions use dollar values.
     class CyberSourceGateway < Gateway
-
-      attr_reader :url 
-      attr_reader :response
-      attr_accessor :options
-
       TEST_URL = 'https://ics2wstest.ic3.com/commerce/1.x/transactionProcessor'
       LIVE_URL = 'https://ics2ws.ic3.com/commerce/1.x/transactionProcessor'
           
@@ -131,7 +126,12 @@ module ActiveMerchant #:nodoc:
       
       def void(identification, options = {})
         commit(build_void_request(identification, options), options)
-      end                       
+      end
+
+      def credit(money, identification, options = {})
+        commit(build_credit_request(money, identification, options), options)
+      end
+      
 
       # CyberSource requires that you provide line item information for tax calculations
       # If you do not have prices for each item or want to simplify the situation then pass in one fake line item that costs the subtotal of the order
@@ -167,7 +167,7 @@ module ActiveMerchant #:nodoc:
       # Create all address hash key value pairs so that we still function if we were only provided with one or two of them 
       def setup_address_hash(options)
         options[:billing_address] = options[:billing_address] || options[:address] || {}
-        options[:shipping_address] = options[:shipping_address] || options[:billing_address]
+        options[:shipping_address] = options[:shipping_address] || {}
       end
       
       def build_auth_request(money, creditcard, options)
@@ -218,6 +218,17 @@ module ActiveMerchant #:nodoc:
         
         xml = Builder::XmlMarkup.new :indent => 2
         add_void_service(xml, request_id, request_token)
+        xml.target!
+      end
+
+      def build_credit_request(money, identification, options)
+        order_id, request_id, request_token = identification.split(";")
+        options[:order_id] = order_id
+        
+        xml = Builder::XmlMarkup.new :indent => 2
+        add_purchase_data(xml, money, true, options)
+        add_credit_service(xml, request_id, request_token)
+        
         xml.target!
       end
 
@@ -275,7 +286,7 @@ module ActiveMerchant #:nodoc:
           xml.tag! 'expirationMonth', format(creditcard.month, :two_digits)
           xml.tag! 'expirationYear', format(creditcard.year, :four_digits)
           xml.tag!('cvNumber', creditcard.verification_value) unless (@options[:ignore_cvv] || creditcard.verification_value.blank? )
-          xml.tag! 'cardType', @@credit_card_codes[creditcard.type.to_sym]
+          xml.tag! 'cardType', @@credit_card_codes[card_brand(creditcard).to_sym]
         end
       end
 
@@ -308,6 +319,14 @@ module ActiveMerchant #:nodoc:
           xml.tag! 'voidRequestToken', request_token
         end
       end
+
+      def add_credit_service(xml, request_id, request_token)
+        xml.tag! 'ccCreditService', {'run' => 'true'} do
+          xml.tag! 'captureRequestID', request_id
+          xml.tag! 'captureRequestToken', request_token
+        end
+      end
+
       
       # Where we actually build the full SOAP request using builder
       def build_request(body, options)
@@ -323,7 +342,7 @@ module ActiveMerchant #:nodoc:
               end
             end
             xml.tag! 's:Body', {'xmlns:xsi' => 'http://www.w3.org/2001/XMLSchema-instance', 'xmlns:xsd' => 'http://www.w3.org/2001/XMLSchema'} do
-              xml.tag! 'requestMessage', {'xmlns' => 'urn:schemas-cybersource-com:transaction-data-1.26'} do
+              xml.tag! 'requestMessage', {'xmlns' => 'urn:schemas-cybersource-com:transaction-data-1.32'} do
                 add_merchant_data(xml, options)
                 xml << body
               end
@@ -334,35 +353,20 @@ module ActiveMerchant #:nodoc:
       
       # Contact CyberSource, make the SOAP request, and parse the reply into a Response object
       def commit(request, options)
-        request_body = build_request(request, options)
+	      response = parse(ssl_post(test? ? TEST_URL : LIVE_URL, build_request(request, options)))
         
-        if test?
-          card_number = parse_credit_card_number(request_body)
-          if result = test? && test_result_from_cc_number(card_number)
-            return result
-          end
-        end
+	      success = response[:decision] == "ACCEPT"
+	      message = @@response_codes[('r' + response[:reasonCode]).to_sym] rescue response[:message] 
+        authorization = success ? [ options[:order_id], response[:requestID], response[:requestToken] ].compact.join(";") : nil
         
-	      url = test? ? TEST_URL : LIVE_URL
-	      data = ssl_post(url, request_body)
-	      reply = parse(data)
-        
-	      success = reply[:decision] == "ACCEPT"
-	      message = @@response_codes[('r' + reply[:reasonCode]).to_sym] rescue reply[:message] 
-        authorization = success ? [ options[:order_id], reply[:requestID], reply[:requestToken] ].compact.join(";") : nil
-        
-        Response.new(success, message, reply, 
+        Response.new(success, message, response, 
           :test => test?, 
-          :authorization => authorization
+          :authorization => authorization,
+          :avs_result => { :code => response[:avsCode] },
+          :cvv_result => response[:cvCode]
         )
       end
       
-      def parse_credit_card_number(xml)
-        doc = REXML::Document.new(xml)
-        node = REXML::XPath.first(doc, '//card/accountNumber')
-        node && node.text
-      end
-
       # Parse the SOAP response
       # Technique inspired by the Paypal Gateway
       def parse(xml)

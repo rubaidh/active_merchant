@@ -42,10 +42,6 @@ module ActiveMerchant
       BANK_ERROR = REALEX_ERROR  = "Gateway is in maintenance. Please try again later."
       ERROR = CLIENT_DEACTIVATED = "Gateway Error"
       
-      attr_reader :url 
-      attr_reader :response
-      attr_reader :options
-
       def initialize(options = {})
         requires!(options, :login, :password)
         @options = options
@@ -60,21 +56,13 @@ module ActiveMerchant
       end     
       
       private           
-      def commit(request)
-        if result = test_result_from_cc_number(parse_credit_card_number(request))
-          return result
-        end
-        
-        data = ssl_post(URL, request)
-        
-        @response = parse(data)
+      def commit(request)        
+        response = parse(ssl_post(URL, request))
 
-        success = @response[:result] == "00"
-        test = response[:message] =~ /\[ test system \]/
-        
-        Response.new(success, message_from(@response), @response,
-          :test => test,
-          :authorization => @response[:authcode]
+        Response.new(response[:result] == "00", message_from(response), response,
+          :test => response[:message] =~ /\[ test system \]/,
+          :authorization => response[:authcode],
+          :cvv_result => response[:cvnresult]
         )      
       end
 
@@ -119,7 +107,7 @@ module ActiveMerchant
           xml.tag! 'card' do
             xml.tag! 'number', credit_card.number
             xml.tag! 'expdate', expiry_date(credit_card)
-            xml.tag! 'type', CARD_MAPPING[credit_card.type.to_s]
+            xml.tag! 'type', CARD_MAPPING[card_brand(credit_card).to_s]
             xml.tag! 'chname', credit_card.name
             xml.tag! 'issueno', credit_card.issue_number
             
@@ -137,7 +125,7 @@ module ActiveMerchant
           end
           
           billing_address = options[:billing_address] || options[:address] || {}
-          shipping_address = options[:shipping_address] || billing_address
+          shipping_address = options[:shipping_address] || {}
           
           xml.tag! 'tssinfo' do
             xml.tag! 'address', 'type' => 'billing' do

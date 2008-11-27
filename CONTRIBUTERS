@@ -51,3 +51,40 @@ Braintree Gateway (Sep 4, 2007)
 Concord Efsnet Gateway (Sep 7, 2007)
 
 * Originally contributed by snacktime
+
+SecurePayTech Gateway (Oct 23, 2007)
+
+* Originally contributed by Jasper Bryant-Greene
+
+SkipJack Gateway (Nov 29, 2007)
+
+* Originally contributed by Bill Bereza - http://atomicobject.com
+
+HiTRUST Gateway (Dec 10, 2007)
+
+* Jaded Pixel
+
+Payflow NV Gateway (Mar 03, 2008)
+
+* Greg Furmanek
+
+PaypalNVGateway (Apr 12, 2008)
+
+* Greg Furmanek
+
+Beanstream (May 13, 2008)
+
+* Created by xiaobozz ( xiaobozzz at gmail dot com )
+
+Sage (June, 2008)
+
+* Cody
+
+Modern Payments (June 13, 2008)
+
+* Initial implementation by Jeremy Nicoll
+* Additional portions by Cody Fauser
+
+Wirecard Gateway (June 30, 2008)
+
+* Initial implementation by Soleone

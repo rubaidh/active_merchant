@@ -1,16 +1,12 @@
 require 'rexml/document'
 
-module ActiveMerchant
-  module Billing
+module ActiveMerchant #:nodoc:
+  module Billing #:nodoc:
     
     # In NZ DPS supports ANZ, Westpac, National Bank, ASB and BNZ. 
     # In Australia DPS supports ANZ, NAB, Westpac, CBA, St George and Bank of South Australia. 
     # The Maybank in Malaysia is supported and the Citibank for Singapore.
     class PaymentExpressGateway < Gateway
-      attr_reader :url 
-      attr_reader :response
-      attr_reader :options
-      
       self.default_currency = 'NZD'
       # PS supports all major credit cards; Visa, Mastercard, Amex, Diners, BankCard & JCB. 
       # Various white label cards can be accepted as well; Farmers, AirNZCard and Elders etc. 
@@ -25,7 +21,7 @@ module ActiveMerchant
       self.homepage_url = 'http://www.paymentexpress.com/'
       self.display_name = 'PaymentExpress'
       
-      PAYMENT_URL = 'https://www.paymentexpress.com/pxpost.aspx'
+      URL = 'https://www.paymentexpress.com/pxpost.aspx'
       
       APPROVED = '1'
       
@@ -37,8 +33,6 @@ module ActiveMerchant
         :validate       => 'Validate'
       }
       
-      POST_HEADERS = { "Content-Type" => "application/x-www-form-urlencoded" }
-
       # We require the DPS gateway username and password when the object is created.
       def initialize(options = {})
         # A DPS username and password must exist 
@@ -49,17 +43,14 @@ module ActiveMerchant
       end
       
       # Funds are transferred immediately.
-      def purchase(money, credit_card_or_billing_token, options = {})
+      def purchase(money, payment_source, options = {})
         
-        credit_card = credit_card_or_billing_token if credit_card_or_billing_token.respond_to?(:number)
+        credit_card = payment_source if payment_source.respond_to?(:number)
         
         if credit_card        
-          if result = test_result_from_cc_number(credit_card.number)
-            return result
-          end
           options[:credit_card] = credit_card
         else
-          options[:token]       = credit_card_or_billing_token
+          options[:token]       = payment_source
         end
         
         request = build_purchase_or_authorization_request(money, options)
@@ -70,10 +61,6 @@ module ActiveMerchant
       # Verifies that funds are available for the requested card and amount and reserves the specified amount.
       # See: http://www.paymentexpress.com/technical_resources/ecommerce_nonhosted/pxpost.html#Authcomplete
       def authorize(money, credit_card, options = {})
-        if result = test_result_from_cc_number(credit_card.number)
-          return result
-        end
-        
         options[:credit_card] = credit_card
 
         request = build_purchase_or_authorization_request(money, options)
@@ -184,7 +171,7 @@ module ActiveMerchant
       end
       
       def add_invoice(xml, options)
-        xml.add_element("TxnId").text = options[:order_id] unless options[:order_id].blank?
+        xml.add_element("TxnId").text = options[:order_id].to_s.slice(0, 16) unless options[:order_id].blank?
         xml.add_element("MerchantReference").text = options[:description] unless options[:description].blank?
       end
       
@@ -208,24 +195,18 @@ module ActiveMerchant
         add_credentials(request)
         add_transaction_type(request, action)
         
-        # Next, post it to the server
-        response = ssl_post(PAYMENT_URL, request.to_s, POST_HEADERS)
-        
         # Parse the XML response
-        @response = parse_response(response)
-        
-        success = @response[:success] == APPROVED
-        test = @response[:test_mode] == '1'
+        response = parse( ssl_post(URL, request.to_s) )
         
         # Return a response
-        PaymentExpressResponse.new(success, @response[:response_text], @response,
-          :test => test,
-          :authorization => @response[:dps_txn_ref]
+        PaymentExpressResponse.new(response[:success] == APPROVED, response[:response_text], response,
+          :test => response[:test_mode] == '1',
+          :authorization => response[:dps_txn_ref]
         )
       end
 
       # Response XML documentation: http://www.paymentexpress.com/technical_resources/ecommerce_nonhosted/pxpost.html#XMLTxnOutput
-      def parse_response(xml_string)
+      def parse(xml_string)
         response = {}
 
         xml = REXML::Document.new(xml_string)          

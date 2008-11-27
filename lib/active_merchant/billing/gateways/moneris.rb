@@ -10,24 +10,19 @@ module ActiveMerchant #:nodoc:
     # Response Values", available at Moneris' {eSelect Plus Documentation 
     # Centre}[https://www3.moneris.com/connect/en/documents/index.html].
     class MonerisGateway < Gateway
-      attr_reader :url 
-      attr_reader :response
-      attr_reader :options
+      TEST_URL = 'https://esqa.moneris.com/gateway2/servlet/MpgRequest'
+      LIVE_URL = 'https://www3.moneris.com/gateway2/servlet/MpgRequest'
       
       self.supported_countries = ['CA']
       self.supported_cardtypes = [:visa, :master]
       self.homepage_url = 'http://www.moneris.com/'
       self.display_name = 'Moneris'
-
-      TEST_URL = 'https://esqa.moneris.com/gateway2/servlet/MpgRequest'
-      LIVE_URL = 'https://www3.moneris.com/gateway2/servlet/MpgRequest'
-        
+  
       # login is your Store ID
       # password is your API Token
       def initialize(options = {})
         requires!(options, :login, :password)
         @options = { :crypt_type => 7 }.update(options)
-        @url = test? ? TEST_URL : LIVE_URL      
         super      
       end      
     
@@ -122,53 +117,28 @@ module ActiveMerchant #:nodoc:
       end
   
       def commit(action, parameters = {})
-        # TODO This part still needs to be refactored
-        if result = test_result_from_cc_number(parameters[:pan])
-          return result
-        end
-        
-        @response = parse(ssl_post(@url, post_data(action, parameters)))
+        response = parse(ssl_post(test? ? TEST_URL : LIVE_URL, post_data(action, parameters)))
 
-        Response.new(successful_response?(response), message_form(response[:message]), @response,
+        Response.new(successful?(response), message_from(response[:message]), response,
           :test          => test?,
-          :authorization => authorization_string(response)
+          :authorization => authorization_from(response)
         )
       end
       
       # Generates a Moneris authorization string of the form 'trans_id;receipt_id'.
-      def authorization_string(response = {})
+      def authorization_from(response = {})
         if response[:trans_id] && response[:receipt_id]
           "#{response[:trans_id]};#{response[:receipt_id]}"
         end
       end
       
       # Tests for a successful response from Moneris' servers
-      def successful_response?(response = {})
+      def successful?(response)
         response[:response_code] && 
         response[:complete] && 
         (0..49).include?(response[:response_code].to_i)
       end
                                                
-      # Parse Moneris' response XML into a convinient Hash.
-      # 
-      # Expected XML format:
-      # 
-      #   "<?xml version=\"1.0\"?><response><receipt>".
-      #   "<ReceiptId>Global Error Receipt</ReceiptId>".
-      #   "<ReferenceNum>null</ReferenceNum>
-      #   <ResponseCode>null</ResponseCode>".
-      #   "<ISO>null</ISO> 
-      #   <AuthCode>null</AuthCode>
-      #   <TransTime>null</TransTime>".
-      #   "<TransDate>null</TransDate>
-      #   <TransType>null</TransType>
-      #   <Complete>false</Complete>".
-      #   "<Message>null</Message>
-      #   <TransAmount>null</TransAmount>".
-      #   "<CardType>null</CardType>".
-      #   "<TransID>null</TransID>
-      #   <TimedOut>null</TimedOut>".
-      #   "</receipt></response>
       def parse(xml)
         response = { :message => "Global Error Receipt", :complete => false }
         hashify_xml!(xml, response)
@@ -198,7 +168,7 @@ module ActiveMerchant #:nodoc:
         xml.to_s
       end
     
-      def message_form(message)
+      def message_from(message)
         return 'Unspecified error' if message.blank?
         message.gsub(/[^\w]/, ' ').split.join(" ").capitalize
       end

@@ -24,7 +24,7 @@ module ActiveMerchant #:nodoc:
       self.money_format = :cents
       self.default_currency = 'GBP'
       self.supported_countries = ['GB']
-      self.supported_cardtypes = [:visa, :master, :american_express, :discover, :jcb, :maestro, :solo, :switch]
+      self.supported_cardtypes = [:visa, :master, :american_express, :diners_club, :discover, :jcb, :maestro, :solo, :switch]
       self.homepage_url = 'http://www.cardstream.com/'
       self.display_name = 'CardStream'
 
@@ -53,12 +53,39 @@ module ActiveMerchant #:nodoc:
         :authorization => 'ESALE_KEYED'
       }
       
-      POST_HEADERS = { 'Content-Type' => 'application/x-www-form-urlencoded' }
-
-      attr_reader :url
-      attr_reader :response
-      attr_reader :options
-
+      CVV_CODE = {
+        '0' => 'U',  
+        '1' => 'P',
+        '2' => 'M',
+        '4' => 'N'
+      }
+      
+      # 0 - No additional information available.  
+      # 1 - Postcode not checked.  
+      # 2 - Postcode matched.  
+      # 4 - Postcode not matched.  
+      # 8 - Postcode partially matched.
+      AVS_POSTAL_MATCH = {
+        "0" => nil,
+        "1" => nil,
+        "2" => "Y",
+        "4" => "N",
+        "8" => "N"
+      }
+      
+      # 0 - No additional information available.  
+      # 1 - Address numeric not checked.  
+      # 2 - Address numeric matched.  
+      # 4 - Address numeric not matched.  
+      # 8 - Address numeric partially matched.
+      AVS_STREET_MATCH = {
+        "0" => nil,
+        "1" => nil,
+        "2" => "Y",
+        "4" => "N",
+        "8" => "N"
+      }
+      
       def initialize(options = {})
         requires!(options, :login, :password)
         @options = options
@@ -107,9 +134,9 @@ module ActiveMerchant #:nodoc:
         add_pair(post, :TransactionUnique, options[:order_id], :required => true)
         add_pair(post, :OrderDesc, options[:description] || options[:order_id], :required => true)
         
-        if [ 'american_express', 'diners_club' ].include?(credit_card.type.to_s)
+        if [ 'american_express', 'diners_club' ].include?(card_brand(credit_card).to_s)
           add_pair(post, :AEIT1Quantity,  1) 
-          add_pair(post, :AEIT1Description,  options[:description] || options[:order_id]) 
+          add_pair(post, :AEIT1Description,  (options[:description] || options[:order_id]).slice(0, 15)) 
           add_pair(post, :AEIT1GrossValue, amount(money))
         end
       end
@@ -132,19 +159,20 @@ module ActiveMerchant #:nodoc:
       end
       
       def format_issue_number(credit_card)
-        credit_card.type.to_s == 'solo' ? format(credit_card.issue_number, :two_digits) : credit_card.issue_number
+        card_brand(credit_card).to_s == 'solo' ? format(credit_card.issue_number, :two_digits) : credit_card.issue_number
       end
 
       def commit(action, parameters)
-        data = ssl_post(test? ? TEST_URL : LIVE_URL, post_data(action, parameters), POST_HEADERS)
-        @response = parse(data)
+        response = parse( ssl_post(test? ? TEST_URL : LIVE_URL, post_data(action, parameters)) )
 
-        success = @response[:response_code] == APPROVED
-        message = message_from(@response)
-
-        Response.new(success, message, @response,
+        Response.new(response[:response_code] == APPROVED, message_from(response), response,
           :test => test?,
-          :authorization => @response[:cross_reference]
+          :authorization => response[:cross_reference],
+          :cvv_result => CVV_CODE[ response[:avscv2_response_code].to_s[0, 1] ],
+          :avs_result => {
+            :street_match => AVS_STREET_MATCH[ response[:avscv2_response_code].to_s[2, 1] ],
+            :postal_match => AVS_POSTAL_MATCH[ response[:avscv2_response_code].to_s[1, 1] ]
+          }
         )
       end
 
