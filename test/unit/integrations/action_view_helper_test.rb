@@ -7,6 +7,7 @@ class ActionViewHelperTest < Test::Unit::TestCase
   include ActionView::Helpers::UrlHelper
   include ActionView::Helpers::TagHelper
   include ActionView::Helpers::TextHelper
+  include ActionView::Helpers::NumberHelper
   
   attr_accessor :output_buffer
   

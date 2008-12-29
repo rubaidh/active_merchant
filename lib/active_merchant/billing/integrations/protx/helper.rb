@@ -5,7 +5,6 @@ module ActiveMerchant #:nodoc:
         class Helper < ActiveMerchant::Billing::Integrations::Helper
           extend Common::ClassMethods
           include Common::InstanceMethods
-          include ActionView::Helpers::NumberHelper
 
           def initialize(order, account, options = {})
             # We need to extract extra options before super is called because
