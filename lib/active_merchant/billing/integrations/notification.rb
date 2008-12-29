@@ -15,25 +15,12 @@ module ActiveMerchant #:nodoc:
         end
 
         def status
-          params['Status']
-        end
-
-        def status_detail
-          params['StatusDetail']
-        end
-
-        # The id the helper passed in to identify the order.
-        def order
-          params['VPSTxId']
+          raise NotImplementedError, "Must implement this method in the subclass"
         end
 
         # the money amount we received in X.2 decimal.
         def gross
-          params['Amount'].to_f
-        end
-
-        def gift_aid?
-          params['GiftAid'].to_i > 0
+          raise NotImplementedError, "Must implement this method in the subclass"
         end
 
         def gross_cents
