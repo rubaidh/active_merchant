@@ -5,13 +5,13 @@ class ProtxVspServerModuleTest < Test::Unit::TestCase
 
   def test_service_urls
     ActiveMerchant::Billing::Base.integration_mode = :production
-    assert_equal 'https://ukvps.protx.com/vspgateway/service', ProtxVspServer.service_url
+    assert_equal 'https://ukvps.protx.com/vspgateway/service/vspserver-register.vsp', ProtxVspServer.service_url
 
     ActiveMerchant::Billing::Base.integration_mode = :test
-    assert_equal 'https://ukvpstest.protx.com/vspgateway/service', ProtxVspServer.service_url
+    assert_equal 'https://ukvpstest.protx.com/vspgateway/service/vspserver-register.vsp', ProtxVspServer.service_url
 
     ActiveMerchant::Billing::Base.integration_mode = :simulator
-    assert_equal 'https://ukvpstest.protx.com/VSPSimulator', ProtxVspServer.service_url
+    assert_equal 'https://ukvpstest.protx.com/VSPSimulator/VSPServerGateway.asp', ProtxVspServer.service_url
   end
 
   def test_notification_method
