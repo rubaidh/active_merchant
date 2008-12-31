@@ -1,3 +1,4 @@
+require File.dirname(__FILE__) + '/protx'
 require File.dirname(__FILE__) + '/protx_vsp_server/protx_vsp_server_response'
 
 module ActiveMerchant #:nodoc:
