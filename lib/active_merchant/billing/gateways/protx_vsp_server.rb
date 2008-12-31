@@ -1,75 +1,50 @@
+require File.dirname(__FILE__) + '/protx_vsp_server/protx_vsp_server_response'
+
 module ActiveMerchant #:nodoc:
   module Billing #:nodoc:
-    class ProtxVspServerGateway < Gateway
-      TEST_URL = 'https://example.com/test'
-      LIVE_URL = 'https://example.com/live'
-      
-      # The countries the gateway supports merchants from as 2 digit ISO country codes
-      self.supported_countries = ['US']
-      
-      # The card types supported by the payment gateway
-      self.supported_cardtypes = [:visa, :master, :american_express, :discover]
-      
-      # The homepage URL of the gateway
-      self.homepage_url = 'http://www.example.net/'
-      
-      # The name of the gateway
-      self.display_name = 'New Gateway'
-      
+    class ProtxVspServerGateway < ProtxGateway
       def initialize(options = {})
-        #requires!(options, :login, :password)
-        @options = options
+        requires!(options, :notification_url)
         super
-      end  
-      
-      def authorize(money, creditcard, options = {})
-        post = {}
-        add_invoice(post, options)
-        add_creditcard(post, creditcard)        
-        add_address(post, creditcard, options)        
-        add_customer_data(post, options)
-        
-        commit('authonly', money, post)
-      end
-      
-      def purchase(money, creditcard, options = {})
-        post = {}
-        add_invoice(post, options)
-        add_creditcard(post, creditcard)        
-        add_address(post, creditcard, options)   
-        add_customer_data(post, options)
-             
-        commit('sale', money, post)
-      end                       
-    
-      def capture(money, authorization, options = {})
-        commit('capture', money, post)
-      end
-    
-      private                       
-      
-      def add_customer_data(post, options)
       end
 
-      def add_address(post, creditcard, options)      
+      def purchase(money, options = {})
+        super(money, nil, options)
       end
 
-      def add_invoice(post, options)
-      end
-      
-      def add_creditcard(post, creditcard)      
-      end
-      
-      def parse(body)
-      end     
-      
-      def commit(action, money, parameters)
+      def authorize(money, options = {})
+        super(money, nil, options)
       end
 
-      def message_from(response)
+      # VSP Server doesn't pass credit cards in during the HTTP POST, so we
+      # won't be expecting any to be passed in.
+      def add_credit_card(post, credit_card)
+      end
+
+      def commit(action, parameters)
+        response = parse( ssl_post(url_for(action), post_data(action, parameters)) )
+
+        ProtxVspServerResponse.new(response["Status"] == APPROVED, message_from(response), response,
+          :test => test?,
+          :authorization => authorization_from(response, parameters)
+        )
+      end
+
+      def build_url(action)
+        endpoint = [ :purchase, :authorization ].include?(action) ? "vspserver-register" : TRANSACTIONS[action].downcase
+        "#{test? ? TEST_URL : LIVE_URL}/#{endpoint}.vsp"
       end
       
+      def build_simulator_url(action)
+        endpoint = "VSPServerGateway.asp?Service=VendorRegisterTx"
+        "#{SIMULATOR_URL}/#{endpoint}"
+      end
+
       def post_data(action, parameters = {})
+        parameters.update(
+          :NotificationURL => @options[:notification_url]
+        )
+        super
       end
     end
   end
