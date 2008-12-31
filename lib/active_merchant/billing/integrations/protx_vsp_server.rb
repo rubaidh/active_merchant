@@ -1,5 +1,6 @@
 require File.dirname(__FILE__) + '/protx_vsp_server/helper.rb'
 require File.dirname(__FILE__) + '/protx_vsp_server/notification.rb'
+require File.dirname(__FILE__) + '/protx_vsp_server/return.rb'
 
 module ActiveMerchant #:nodoc:
   module Billing #:nodoc:
