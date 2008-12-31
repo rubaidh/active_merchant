@@ -5,83 +5,48 @@ module ActiveMerchant #:nodoc:
     module Integrations #:nodoc:
       module ProtxVspServer
         class Notification < ActiveMerchant::Billing::Integrations::Notification
+          def initialize(post, options = {})
+            @received_at = Time.now
+            super
+          end
+
           def complete?
-            params['']
+            status == 'OK'
           end 
 
           def item_id
-            params['']
+            params['VendorTxCode']
           end
 
           def transaction_id
-            params['']
+            params['VPSTxId']
           end
 
           # When was this payment received by the client. 
           def received_at
-            params['']
+            @received_at
           end
-
-          def payer_email
-            params['']
-          end
-         
-          def receiver_email
-            params['']
-          end 
 
           def security_key
-            params['']
+            params['TxAuthNo']
           end
 
           # the money amount we received in X.2 decimal.
           def gross
-            params['']
+            params['Amount'].to_f
           end
 
-          # Was this a test transaction?
+          # FIXME: How do we know if this was a test transaction?
           def test?
             params[''] == 'test'
           end
 
           def status
-            params['']
+            params['Status']
           end
 
-          # Acknowledge the transaction to ProtxVspServer. This method has to be called after a new 
-          # apc arrives. ProtxVspServer will verify that all the information we received are correct and will return a 
-          # ok or a fail. 
-          # 
-          # Example:
-          # 
-          #   def ipn
-          #     notify = ProtxVspServerNotification.new(request.raw_post)
-          #
-          #     if notify.acknowledge 
-          #       ... process order ... if notify.complete?
-          #     else
-          #       ... log possible hacking attempt ...
-          #     end
-          def acknowledge      
-            payload = raw
-
-            uri = URI.parse(ProtxVspServer.notification_confirmation_url)
-
-            request = Net::HTTP::Post.new(uri.path)
-
-            request['Content-Length'] = "#{payload.size}"
-            request['User-Agent'] = "Active Merchant -- http://home.leetsoft.com/am"
-            request['Content-Type'] = "application/x-www-form-urlencoded" 
-
-            http = Net::HTTP.new(uri.host, uri.port)
-            http.verify_mode    = OpenSSL::SSL::VERIFY_NONE unless @ssl_strict
-            http.use_ssl        = true
-
-            response = http.request(request, payload)
-
-            # Replace with the appropriate codes
-            raise StandardError.new("Faulty ProtxVspServer result: #{response.body}") unless ["AUTHORISED", "DECLINED"].include?(response.body)
-            response.body == "AUTHORISED"
+          def acknowledge
+            true
           end
  private
 
