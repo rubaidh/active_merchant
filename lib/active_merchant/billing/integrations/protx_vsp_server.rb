@@ -7,12 +7,29 @@ module ActiveMerchant #:nodoc:
     module Integrations #:nodoc:
       module ProtxVspServer 
        
-        mattr_accessor :service_url
-        self.service_url = 'https://www.example.com'
+        mattr_accessor :production_service_url
+        self.production_service_url = 'https://ukvps.protx.com/vspgateway/service'
+
+        mattr_accessor :test_service_url
+        self.test_service_url = 'https://ukvpstest.protx.com/vspgateway/service'
+
+        mattr_accessor :simulator_service_url
+        self.simulator_service_url = 'https://ukvpstest.protx.com/VSPSimulator'
+
+        def self.service_url
+          case ActiveMerchant::Billing::Base.integration_mode
+          when :production
+            self.production_service_url
+          when :test
+            self.test_service_url
+          when :simulator
+            self.simulator_service_url
+          end
+        end
 
         def self.notification(post)
           Notification.new(post)
-        end  
+        end
       end
     end
   end
