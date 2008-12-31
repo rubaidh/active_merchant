@@ -15,6 +15,10 @@ class ProtxVspServerModuleTest < Test::Unit::TestCase
   end
 
   def test_notification_method
-    assert_instance_of ProtxVspServer::Notification, ProtxVspServer.notification('name=cody')
+    assert_instance_of ProtxVspServer::Notification, ProtxVspServer.notification('name=mathie')
+  end
+
+  def test_return_method
+    assert_instance_of ProtxVspServer::Return, ProtxVspServer.return('name=mathie')
   end
 end 
