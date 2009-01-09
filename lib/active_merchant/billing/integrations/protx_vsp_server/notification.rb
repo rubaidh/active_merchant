@@ -45,6 +45,10 @@ module ActiveMerchant #:nodoc:
             params['Status']
           end
 
+          def status_detail
+            params['StatusDetail']
+          end
+
           def acknowledge
             true
           end
