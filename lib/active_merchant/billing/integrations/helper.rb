@@ -14,7 +14,7 @@ module ActiveMerchant #:nodoc:
         self.application_id = 'ActiveMerchant'
 
         def initialize(order, account, options = {})
-          options.assert_valid_keys([:amount, :currency, :test])
+          options.assert_valid_keys([:amount, :currency, :test, :password])
           @fields = {}
           self.order = order
           self.account = account
