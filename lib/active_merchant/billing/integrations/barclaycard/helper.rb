@@ -59,6 +59,7 @@ module ActiveMerchant #:nodoc:
           mapping :description, ''
           mapping :tax, 'tax'
           mapping :shipping, 'shipping'
+          mapping :collect_delivery_address , 'collectdeliveryaddress'
 
           # Extra special mappings
           mapping :merchant_display_name, 'merchantdisplayname'
