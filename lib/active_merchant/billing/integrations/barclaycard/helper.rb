@@ -64,6 +64,7 @@ module ActiveMerchant #:nodoc:
           # Extra special mappings
           mapping :merchant_display_name, 'merchantdisplayname'
           mapping :epdq_data, 'epdqdata'
+          mapping :supported_card_types, 'supportedcardtypes'
 
           private
           def encrypt_transaction_details
